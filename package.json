@@ -1,0 +1,17 @@
+{
+  "name": "wechat-resource-tracker-v2",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "build:web": "npm --workspace apps/web run build",
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "tools:prepare": "powershell -ExecutionPolicy Bypass -File scripts/prepare-external-tools.ps1",
+    "tools:wechat-exporter": "powershell -ExecutionPolicy Bypass -File scripts/start-wechat-article-exporter.ps1",
+    "tools:wewe-rss": "powershell -ExecutionPolicy Bypass -File scripts/start-wewe-rss.ps1",
+    "dev:product": "powershell -ExecutionPolicy Bypass -File scripts/start-product.ps1"
+  }
+}

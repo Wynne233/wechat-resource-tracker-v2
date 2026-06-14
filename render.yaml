@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: wechat-resource-tracker-api
+    env: docker
+    plan: free
+    dockerfilePath: ./apps/api/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: RESOURCE_EXTRACTOR_LLM_ENABLED
+        value: "false"
+      - key: PYTHON_VERSION
+        value: "3.12"

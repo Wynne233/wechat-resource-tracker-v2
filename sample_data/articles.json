@@ -1,0 +1,31 @@
+[
+  {
+    "source_name": "效率工具研究所",
+    "source_identifier": "efficiency-lab",
+    "title": "最近值得收藏的 AI 效率工具合集",
+    "article_url": "https://mp.weixin.qq.com/s/demo-ai-tools",
+    "published_at": "2026-05-08T09:30:00",
+    "content_text": "今天推荐几个 AI 工具。Notion AI 适合整理会议纪要和知识库，官网 https://www.notion.so/product/ai。Raycast AI 适合 macOS 快速启动、脚本和 AI 问答，下载页 https://www.raycast.com。两个工具都适合效率提升。",
+    "content_html": "",
+    "read_count": 3200,
+    "like_count": 140,
+    "comment_count": 12,
+    "crawl_source": "history_export",
+    "raw_payload": {}
+  },
+  {
+    "source_name": "宝藏软件周刊",
+    "source_identifier": "software-weekly",
+    "title": "免费听歌和追剧工具整理",
+    "article_url": "https://mp.weixin.qq.com/s/demo-media-tools",
+    "published_at": "2026-05-10T12:00:00",
+    "content_text": "本期整理影音资源。Listen1 是一个免费听歌工具，支持多个音乐平台聚合搜索，官网 https://listen1.github.io/listen1/。另一个追剧 App 叫 MoonTV，适合 Web 和 Android 使用，但部分镜像站可能不稳定，建议谨慎使用。",
+    "content_html": "",
+    "read_count": null,
+    "like_count": null,
+    "comment_count": null,
+    "crawl_source": "history_export",
+    "raw_payload": {}
+  }
+]
+
