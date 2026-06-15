@@ -10,3 +10,15 @@ services:
         value: "false"
       - key: PYTHON_VERSION
         value: "3.12"
+  - type: web
+    name: wechat-resource-tracker-web
+    env: node
+    plan: free
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://wechat-resource-tracker-api.onrender.com
+      - key: INTERNAL_API_BASE_URL
+        value: https://wechat-resource-tracker-api.onrender.com
