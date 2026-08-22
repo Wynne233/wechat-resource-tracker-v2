@@ -1,11 +1,11 @@
 [
   {
-    "source_name": "效率工具研究所",
+    "source_name": "\u6548\u7387\u5de5\u5177\u7814\u7a76\u6240",
     "source_identifier": "efficiency-lab",
-    "title": "最近值得收藏的 AI 效率工具合集",
+    "title": "\u6700\u8fd1\u503c\u5f97\u6536\u85cf\u7684 AI \u6548\u7387\u5de5\u5177\u5408\u96c6",
     "article_url": "https://mp.weixin.qq.com/s/demo-ai-tools",
     "published_at": "2026-05-08T09:30:00",
-    "content_text": "今天推荐几个 AI 工具。Notion AI 适合整理会议纪要、项目文档和知识库，官网 https://www.notion.so/product/ai。Raycast AI 适合 macOS 快速启动、脚本执行和 AI 问答，下载页 https://www.raycast.com。两个工具都适合效率提升，但 Raycast AI 需要 macOS 环境。",
+    "content_text": "\u4eca\u5929\u63a8\u8350\u51e0\u4e2a AI \u5de5\u5177\u3002Notion AI \u662f\u4e00\u4e2a\u9002\u5408\u6574\u7406\u4f1a\u8bae\u7eaa\u8981\u3001\u9879\u76ee\u6587\u6863\u548c\u77e5\u8bc6\u5e93\u7684\u5de5\u5177\uff0c\u5b98\u7f51 https://www.notion.so/product/ai\u3002Raycast AI \u662f\u4e00\u4e2a\u9002\u5408 macOS \u5feb\u901f\u542f\u52a8\u3001\u811a\u672c\u6267\u884c\u548c AI \u95ee\u7b54\u7684\u6548\u7387\u5de5\u5177\uff0c\u4e0b\u8f7d\u9875 https://www.raycast.com\u3002",
     "content_html": "",
     "read_count": 3200,
     "like_count": 140,
@@ -14,12 +14,12 @@
     "raw_payload": {}
   },
   {
-    "source_name": "宝藏软件周刊",
+    "source_name": "\u5b9d\u85cf\u8f6f\u4ef6\u5468\u520a",
     "source_identifier": "software-weekly",
-    "title": "免费听歌和追剧工具整理",
+    "title": "\u514d\u8d39\u542c\u6b4c\u548c\u8ffd\u5267\u5de5\u5177\u6574\u7406",
     "article_url": "https://mp.weixin.qq.com/s/demo-media-tools",
     "published_at": "2026-05-10T12:00:00",
-    "content_text": "本期整理影音资源。Listen1 是一个免费听歌工具，支持多个音乐平台聚合搜索，官网 https://listen1.github.io/listen1/。MoonTV 是一个 Web 追剧项目，适合个人部署和在线观看，项目地址 https://github.com/moontechlab/lunatv。MoonTV 的部分镜像源可能不稳定，建议谨慎使用。",
+    "content_text": "\u672c\u671f\u6574\u7406\u5f71\u97f3\u8d44\u6e90\u3002Listen1 \u662f\u4e00\u4e2a\u514d\u8d39\u542c\u6b4c\u5de5\u5177\uff0c\u652f\u6301\u591a\u4e2a\u97f3\u4e50\u5e73\u53f0\u805a\u5408\u641c\u7d22\uff0c\u5b98\u7f51 https://listen1.github.io/listen1/\u3002MoonTV \u662f\u4e00\u4e2a Web \u8ffd\u5267\u9879\u76ee\uff0c\u9002\u5408\u4e2a\u4eba\u90e8\u7f72\u548c\u5728\u7ebf\u89c2\u770b\uff0c\u9879\u76ee\u5730\u5740 https://github.com/moontechlab/lunatv\u3002MoonTV \u7684\u90e8\u5206\u955c\u50cf\u6e90\u53ef\u80fd\u4e0d\u7a33\u5b9a\uff0c\u5efa\u8bae\u8c28\u614e\u4f7f\u7528\u3002",
     "content_html": "",
     "read_count": 2800,
     "like_count": 96,
@@ -28,12 +28,12 @@
     "raw_payload": {}
   },
   {
-    "source_name": "开源项目观察",
+    "source_name": "\u5f00\u6e90\u9879\u76ee\u89c2\u5bdf",
     "source_identifier": "opensource-watch",
-    "title": "图片高清化和文档处理项目",
+    "title": "\u56fe\u7247\u9ad8\u6e05\u5316\u548c\u6587\u6863\u5904\u7406\u9879\u76ee",
     "article_url": "https://mp.weixin.qq.com/s/demo-creative-tools",
     "published_at": "2026-05-12T18:00:00",
-    "content_text": "Upscayl 是一款开源图片高清化工具，支持 Windows、macOS 和 Linux，项目地址 https://github.com/upscayl/upscayl。Stirling PDF 是一个本地化 PDF 工具箱，支持合并、拆分、压缩和格式转换，项目地址 https://github.com/Stirling-Tools/Stirling-PDF。",
+    "content_text": "Upscayl \u662f\u4e00\u6b3e\u5f00\u6e90\u56fe\u7247\u9ad8\u6e05\u5316\u5de5\u5177\uff0c\u652f\u6301 Windows\u3001macOS \u548c Linux\uff0c\u9879\u76ee\u5730\u5740 https://github.com/upscayl/upscayl\u3002Stirling PDF \u662f\u4e00\u4e2a\u672c\u5730\u5316 PDF \u5de5\u5177\u7bb1\uff0c\u652f\u6301\u5408\u5e76\u3001\u62c6\u5206\u3001\u538b\u7f29\u548c\u683c\u5f0f\u8f6c\u6362\uff0c\u9879\u76ee\u5730\u5740 https://github.com/Stirling-Tools/Stirling-PDF\u3002",
     "content_html": "",
     "read_count": 1800,
     "like_count": 75,
@@ -42,12 +42,12 @@
     "raw_payload": {}
   },
   {
-    "source_name": "阅读工具箱",
+    "source_name": "\u9605\u8bfb\u5de5\u5177\u7bb1",
     "source_identifier": "reading-tools",
-    "title": "稍后读和知识管理工具推荐",
+    "title": "\u7a0d\u540e\u8bfb\u548c\u77e5\u8bc6\u7ba1\u7406\u5de5\u5177\u63a8\u8350",
     "article_url": "https://mp.weixin.qq.com/s/demo-reading-tools",
     "published_at": "2026-05-14T08:30:00",
-    "content_text": "Readwise Reader 适合稍后读、RSS 阅读和高亮同步，官网 https://readwise.io/read。Omnivore 曾经是一个开源稍后读工具，但文章提到官方服务已经停止维护，历史项目地址 https://github.com/omnivore-app/omnivore，建议作为归档项目看待。",
+    "content_text": "Readwise Reader \u662f\u4e00\u4e2a\u9002\u5408\u7a0d\u540e\u8bfb\u3001RSS \u9605\u8bfb\u548c\u9ad8\u4eae\u540c\u6b65\u7684\u9605\u8bfb\u5de5\u5177\uff0c\u5b98\u7f51 https://readwise.io/read\u3002Omnivore \u66fe\u7ecf\u662f\u4e00\u4e2a\u5f00\u6e90\u7a0d\u540e\u8bfb\u5de5\u5177\uff0c\u4f46\u6587\u7ae0\u63d0\u5230\u5b98\u65b9\u670d\u52a1\u5df2\u7ecf\u505c\u6b62\u7ef4\u62a4\uff0c\u5386\u53f2\u9879\u76ee\u5730\u5740 https://github.com/omnivore-app/omnivore\uff0c\u5efa\u8bae\u4f5c\u4e3a\u5f52\u6863\u9879\u76ee\u770b\u5f85\u3002",
     "content_html": "",
     "read_count": 2100,
     "like_count": 88,
@@ -56,12 +56,12 @@
     "raw_payload": {}
   },
   {
-    "source_name": "开发者小报",
+    "source_name": "\u5f00\u53d1\u8005\u5c0f\u62a5",
     "source_identifier": "dev-weekly",
-    "title": "开发者效率工具：HTTP 调试和 API 文档",
+    "title": "\u5f00\u53d1\u8005\u6548\u7387\u5de5\u5177\uff1aHTTP \u8c03\u8bd5\u548c API \u6587\u6863",
     "article_url": "https://mp.weixin.qq.com/s/demo-dev-tools",
     "published_at": "2026-05-16T11:20:00",
-    "content_text": "Hoppscotch 是一个开源 API 调试工具，适合替代轻量级 Postman 场景，项目地址 https://github.com/hoppscotch/hoppscotch。Scalar 可以生成漂亮的 API 文档和交互式接口参考，官网 https://scalar.com。",
+    "content_text": "Hoppscotch \u662f\u4e00\u4e2a\u5f00\u6e90 API \u8c03\u8bd5\u5de5\u5177\uff0c\u9002\u5408\u66ff\u4ee3\u8f7b\u91cf\u7ea7 Postman \u573a\u666f\uff0c\u9879\u76ee\u5730\u5740 https://github.com/hoppscotch/hoppscotch\u3002Scalar \u662f\u4e00\u4e2a\u53ef\u4ee5\u751f\u6210\u6f02\u4eae API \u6587\u6863\u548c\u4ea4\u4e92\u5f0f\u63a5\u53e3\u53c2\u8003\u7684\u5de5\u5177\uff0c\u5b98\u7f51 https://scalar.com\u3002",
     "content_html": "",
     "read_count": 1650,
     "like_count": 62,
