@@ -1,0 +1,100 @@
+# Production topology for Render. Keep this file separate from render.yaml
+# until the account owner approves the paid persistent services.
+services:
+  - type: web
+    name: wechat-resource-tracker-api
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./apps/api/Dockerfile
+    healthCheckPath: /health
+    disk:
+      name: tracker-api-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: RESOURCE_TRACKER_DB_FILE
+        value: /var/data/resource_tracker_v2.db
+      - key: RESOURCE_TRACKER_RESET_CORRUPT_DEMO_DATA
+        value: "false"
+      - key: RESOURCE_EXTRACTOR_LLM_ENABLED
+        value: "true"
+      - key: RESOURCE_EXTRACTOR_BASE_URL
+        value: https://api.deepseek.com
+      - key: RESOURCE_EXTRACTOR_MODEL
+        value: deepseek-chat
+      - key: WECHAT_EXPORTER_BASE_URL
+        value: https://wechat-article-exporter-tracker.onrender.com
+      - key: WEWE_RSS_BASE_URL
+        value: https://wewe-rss-tracker.onrender.com
+      - key: WEWE_RSS_FEED_URL
+        value: https://wewe-rss-tracker.onrender.com/feeds/all.json
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: SCHEDULER_TOKEN
+        sync: false
+
+  - type: web
+    name: wechat-article-exporter-tracker
+    runtime: image
+    plan: starter
+    image:
+      url: ghcr.io/wechat-article/wechat-article-exporter:latest
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: NITRO_KV_DRIVER
+        value: fs
+      - key: NITRO_KV_BASE
+        value: .data/kv
+
+  - type: web
+    name: wewe-rss-tracker
+    runtime: image
+    plan: starter
+    image:
+      url: docker.io/cooderl/wewe-rss-sqlite:v2.6.1
+    disk:
+      name: wewe-rss-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_TYPE
+        value: sqlite
+      - key: SERVER_ORIGIN_URL
+        value: https://wewe-rss-tracker.onrender.com
+      - key: FEED_MODE
+        value: fulltext
+      - key: ENABLE_CLEAN_HTML
+        value: "true"
+      - key: UPDATE_DELAY_TIME
+        value: 60s
+      - key: CRON_EXPRESSION
+        value: "0 18 * * 6"
+      - key: AUTH_CODE
+        sync: false
+
+  - type: cron
+    name: wechat-resource-tracker-weekly-check
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerCommand: python -m app.trigger_weekly_check
+    schedule: "30 18 * * 6"
+    envVars:
+      - key: SCHEDULER_API_URL
+        value: https://wechat-resource-tracker-api.onrender.com
+      - key: SCHEDULER_TOKEN
+        sync: false
+
+  - type: web
+    name: wechat-resource-tracker-web
+    runtime: node
+    plan: free
+    rootDir: apps/web
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://wechat-resource-tracker-api.onrender.com
+      - key: INTERNAL_API_BASE_URL
+        value: https://wechat-resource-tracker-api.onrender.com

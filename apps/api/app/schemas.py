@@ -277,7 +277,9 @@ class WeweRssSyncRequest(BaseModel):
 
 class ArticleAnalyzeRequest(BaseModel):
     article_url: str
-    exporter_base_url: str = "http://127.0.0.1:4100"
+    # Empty means "use the server-side WECHAT_EXPORTER_BASE_URL". This keeps
+    # the browser from learning the internal collector endpoint.
+    exporter_base_url: str = ""
 
 
 class AnalyzedResource(BaseModel):

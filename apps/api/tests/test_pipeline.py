@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.extractors import _valid_resource_name, extract_resources
-from app.models import Base, Resource
+from app.models import Base, Resource, SourceAccount
 from app.repository import (
     analyze_article_url,
     check_source_now,
@@ -20,9 +20,10 @@ from app.repository import (
     save_wewe_rss_config,
     search_resources,
     sync_wewe_rss,
+    run_due_source_checks,
 )
 from app.adapters import parse_wechat_exporter_content
-from app.schemas import ArticleAnalyzeRequest, HistoryImportRequest, StandardArticle, SubscriptionCreate
+from app.schemas import ArticleAnalyzeRequest, HistoryImportRequest, HistoryImportResponse, StandardArticle, SubscriptionCreate
 from app.schemas import AdapterImportRequest, SupplementImportRequest, WeweRssConfigRequest, WeweRssSyncRequest
 
 
@@ -30,6 +31,49 @@ def make_session():
     engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
     Base.metadata.create_all(bind=engine)
     return sessionmaker(bind=engine)()
+
+
+def test_weekly_check_runs_one_feed_sync_for_all_due_sources(monkeypatch):
+    session = make_session()
+    payload = sample_payload()
+    import_history_json(session, payload)
+    source = session.query(SourceAccount).first()
+    source.tracking_status = "active"
+    source.next_check_at = datetime(2020, 1, 1)
+    session.commit()
+
+    called = {"sync": 0, "fulltext": 0}
+
+    def fake_sync(_session, _payload):
+        called["sync"] += 1
+        return HistoryImportResponse(
+            requested_count=3,
+            imported_count=2,
+            skipped_count=1,
+            resource_count=1,
+            results=[],
+        )
+
+    def fake_fulltext(_session, base_url="", limit=30):
+        called["fulltext"] += 1
+        assert limit == 2
+        return HistoryImportResponse(
+            requested_count=2,
+            imported_count=2,
+            skipped_count=0,
+            resource_count=1,
+            results=[],
+        )
+
+    monkeypatch.setattr("app.repository.sync_wewe_rss", fake_sync)
+    monkeypatch.setattr("app.repository.fetch_missing_fulltext_with_exporter", fake_fulltext)
+
+    result = run_due_source_checks(session)
+
+    assert result.imported_count == 2
+    assert called == {"sync": 1, "fulltext": 1}
+    assert source.last_check_status == "success"
+    assert source.next_check_at and source.next_check_at > datetime.now()
 
 
 def sample_payload() -> HistoryImportRequest:

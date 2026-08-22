@@ -5,7 +5,7 @@ import json
 import os
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,7 @@ from .repository import (
     list_task_logs,
     recalculate_score_by_id,
     reparse_all_articles,
+    run_due_source_checks,
     save_wewe_rss_config,
     search_resources,
     sync_wewe_rss,
@@ -127,6 +128,22 @@ app.add_middleware(
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.post("/internal/jobs/weekly-source-check", response_model=HistoryImportResponse)
+def internal_weekly_source_check(
+    x_scheduler_token: str = Header(default=""),
+    session: Session = Depends(get_session),
+) -> HistoryImportResponse:
+    expected_token = os.getenv("SCHEDULER_TOKEN", "").strip()
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="Scheduled checks are not configured.")
+    if x_scheduler_token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid scheduler token.")
+    try:
+        return run_due_source_checks(session)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Weekly source check failed: {exc}") from exc
 
 
 @app.get("/search", response_model=SearchResponse)

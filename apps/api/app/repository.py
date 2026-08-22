@@ -77,6 +77,18 @@ SOURCE_CHECK_COOLDOWN = timedelta(minutes=30)
 SOURCE_CHECK_INTERVAL = timedelta(days=7)
 
 
+def configured_exporter_base_url(requested_url: str = "") -> str:
+    return (
+        requested_url.strip()
+        or os.getenv("WECHAT_EXPORTER_BASE_URL", "").strip()
+        or "http://127.0.0.1:4100"
+    )
+
+
+def configured_wewe_rss_feed_url(requested_url: str = "") -> str:
+    return requested_url.strip() or os.getenv("WEWE_RSS_FEED_URL", "").strip()
+
+
 def _unique(values: list[str]) -> list[str]:
     result: list[str] = []
     seen: set[str] = set()
@@ -257,6 +269,7 @@ class WechatArticleHTMLParser(HTMLParser):
 
 def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> ArticleAnalyzeResponse:
     article_url = payload.article_url.strip()
+    exporter_base_url = configured_exporter_base_url(payload.exporter_base_url)
     if not is_valid_wechat_article_url(article_url):
         raise ValueError("请输入有效的微信公众号文章链接。")
 
@@ -265,7 +278,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
     before_notification_count = session.scalar(select(func.count(Notification.id))) or 0
 
     try:
-        article = fetch_article_from_exporter(article_url, payload.exporter_base_url)
+        article = fetch_article_from_exporter(article_url, exporter_base_url)
     except RuntimeError as exc:
         session.add(
             TaskLog(
@@ -273,7 +286,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
                 task_type="article_url_analysis",
                 status="failed",
                 summary=f"文章链接分析失败：{exc}",
-                payload={"article_url": article_url, "base_url": payload.exporter_base_url},
+                payload={"article_url": article_url, "base_url": exporter_base_url},
             )
         )
         session.commit()
@@ -283,7 +296,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
         session,
         [article],
         "article_url_analysis",
-        {"article_url": article_url, "base_url": payload.exporter_base_url},
+        {"article_url": article_url, "base_url": exporter_base_url},
     )
 
     source = ensure_source(session, article)
@@ -420,9 +433,10 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
     before_resource_ids = {resource.id for resource in session.scalars(select(Resource)).all()}
     before_notification_count = session.scalar(select(func.count(Notification.id))) or 0
 
+    exporter_base_url = configured_exporter_base_url(payload.exporter_base_url)
     fallback_message = ""
     try:
-        article = fetch_article_from_exporter(article_url, payload.exporter_base_url)
+        article = fetch_article_from_exporter(article_url, exporter_base_url)
     except RuntimeError as exc:
         fallback_message = str(exc)
         try:
@@ -453,7 +467,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
                 task_type="article_url_analysis",
                 status="partial_success" if article.content_text else "failed",
                 summary="exporter 不可用，已尝试直接解析微信页面。" if article.content_text else f"文章链接分析失败：{fallback_message}",
-                payload={"article_url": article_url, "base_url": payload.exporter_base_url},
+                payload={"article_url": article_url, "base_url": exporter_base_url},
             )
         )
         session.flush()
@@ -462,7 +476,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
         session,
         [article],
         "article_url_analysis",
-        {"article_url": article_url, "base_url": payload.exporter_base_url},
+        {"article_url": article_url, "base_url": exporter_base_url},
     )
 
     source = ensure_source(session, article)
@@ -507,9 +521,10 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
 
 def fetch_missing_fulltext_with_exporter(
     session: Session,
-    base_url: str = "http://127.0.0.1:4100",
+    base_url: str = "",
     limit: int = 30,
 ) -> HistoryImportResponse:
+    base_url = configured_exporter_base_url(base_url)
     articles = (
         session.scalars(
             select(Article)
@@ -636,7 +651,7 @@ def prune_orphan_resources(session: Session) -> int:
 
 def sync_wewe_rss(session: Session, payload: WeweRssSyncRequest) -> HistoryImportResponse:
     config = get_or_create_integration(session, "wewe-rss")
-    feed_url = payload.feed_url or config.feed_url
+    feed_url = configured_wewe_rss_feed_url(payload.feed_url) or config.feed_url
     if not feed_url:
         raise ValueError("请先配置 wewe-rss 的 JSON/RSS Feed 地址。")
     attempted_urls: list[str] = []
@@ -806,6 +821,82 @@ def check_source_now(session: Session, source_id: str) -> SourceCheckResponse:
             )
             session.commit()
         raise ValueError(str(exc)) from exc
+
+
+def run_due_source_checks(session: Session) -> HistoryImportResponse:
+    """Run one low-frequency feed sync for every tracked source due this week.
+
+    wewe-rss exposes a feed for all subscribed accounts, so one feed request is
+    both gentler on WeChat and avoids repeating the same crawl for every source.
+    """
+    timestamp = now()
+    due_sources = session.scalars(
+        select(SourceAccount)
+        .where(
+            SourceAccount.tracking_status == "active",
+            SourceAccount.next_check_at.is_not(None),
+            SourceAccount.next_check_at <= timestamp,
+        )
+        .order_by(SourceAccount.next_check_at)
+    ).all()
+    if not due_sources:
+        return HistoryImportResponse(requested_count=0, imported_count=0, skipped_count=0, resource_count=0, results=[])
+
+    for source in due_sources:
+        source.last_check_status = "running"
+        source.last_check_message = "Weekly source check is running."
+    session.commit()
+
+    try:
+        sync_result = sync_wewe_rss(session, WeweRssSyncRequest())
+        # RSS feeds sometimes only contain article metadata. Fetching those
+        # entries here preserves the full-text-before-AI extraction contract.
+        if sync_result.imported_count:
+            fetch_missing_fulltext_with_exporter(
+                session,
+                base_url=configured_exporter_base_url(),
+                limit=min(sync_result.imported_count, 30),
+            )
+        for source in due_sources:
+            source.last_checked_at = timestamp
+            source.next_check_at = timestamp + SOURCE_CHECK_INTERVAL
+            source.last_check_status = "success"
+            source.last_check_message = (
+                f"Weekly check completed: {sync_result.imported_count} new articles, "
+                f"{sync_result.resource_count} resources created or updated."
+            )
+            source.consecutive_failures = 0
+        session.add(
+            TaskLog(
+                id=new_id("task"),
+                task_type="source_weekly_check",
+                status="success",
+                summary=f"Checked {len(due_sources)} due sources.",
+                payload={"source_ids": [source.id for source in due_sources]},
+            )
+        )
+        session.commit()
+        return sync_result
+    except Exception as exc:
+        for source in due_sources:
+            source.consecutive_failures += 1
+            source.last_checked_at = timestamp
+            source.last_check_status = "failed"
+            source.last_check_message = f"Weekly check failed: {exc}"
+            if source.consecutive_failures >= 3:
+                source.tracking_status = "paused"
+                source.last_check_message += " Auto tracking paused after 3 consecutive failures."
+        session.add(
+            TaskLog(
+                id=new_id("task"),
+                task_type="source_weekly_check",
+                status="failed",
+                summary=f"Weekly source check failed: {exc}",
+                payload={"source_ids": [source.id for source in due_sources]},
+            )
+        )
+        session.commit()
+        raise
 
 
 def fetch_wewe_rss_articles_with_fallback(feed_url: str, auth_code: str | None) -> tuple[list[StandardArticle], str, list[str]]:
@@ -1934,14 +2025,14 @@ def get_or_create_integration(session: Session, provider: str) -> IntegrationCon
         return config
     defaults = {
         "wechat-article-exporter": {
-            "base_url": "http://127.0.0.1:4100",
+            "base_url": configured_exporter_base_url(),
             "status": "configured",
             "last_message": "已从 GitHub 拉取源码；用于历史冷启动导出，再导入本系统。",
         },
         "wewe-rss": {
-            "base_url": "http://127.0.0.1:4000",
-            "feed_url": "http://127.0.0.1:4000/feeds/all.json",
-            "auth_code": "123567",
+            "base_url": os.getenv("WEWE_RSS_BASE_URL", "http://127.0.0.1:4000"),
+            "feed_url": configured_wewe_rss_feed_url() or "http://127.0.0.1:4000/feeds/all.json",
+            "auth_code": os.getenv("WEWE_RSS_AUTH_CODE", ""),
             "status": "configured",
             "last_message": "已配置本地 wewe-rss 默认地址；扫码登录并添加公众号后可同步。",
         },
