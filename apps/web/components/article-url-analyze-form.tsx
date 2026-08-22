@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useState, useTransition } from "react";
 
 import { analyzeArticleUrl, type ArticleAnalyzeResponse } from "@/lib/api";
 
@@ -73,11 +73,15 @@ export function ArticleUrlAnalyzeForm({ compact = false }: { compact?: boolean }
                     </Link>
                     <p className="muted">{resource.summary}</p>
                   </div>
-                  <span className="badge">{resource.latest_score.toFixed(1)} / {resource.latest_grade}</span>
+                  <span className="badge">
+                    {resource.latest_score.toFixed(1)} / {resource.latest_grade}
+                  </span>
                 </div>
               ))}
             </div>
-          ) : null}
+          ) : (
+            <p className="muted">本次没有生成资源。若全文状态不是 full_text，请先确保全文获取服务可用后重新分析。</p>
+          )}
         </div>
       ) : null}
     </div>

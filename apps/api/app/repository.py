@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from html.parser import HTMLParser
 import json
 import os
 import time
@@ -192,6 +193,68 @@ def import_supplement(session: Session, payload: SupplementImportRequest) -> His
     return ingest_standard_articles(session, articles, "supplement_import", {"article_url": payload.article_url})
 
 
+class WechatArticleHTMLParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.title_parts: list[str] = []
+        self.source_parts: list[str] = []
+        self.content_parts: list[str] = []
+        self._capture_title = False
+        self._capture_source = False
+        self._in_content = False
+        self._content_depth = 0
+        self.meta_title = ""
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        attrs_map = {key: value or "" for key, value in attrs}
+        node_id = attrs_map.get("id", "")
+        if tag == "meta" and attrs_map.get("property") == "og:title":
+            self.meta_title = attrs_map.get("content", "").strip()
+        if tag == "h1" and node_id == "activity-name":
+            self._capture_title = True
+        if tag == "a" and node_id == "js_name":
+            self._capture_source = True
+        if node_id == "js_content":
+            self._in_content = True
+            self._content_depth = 1
+            return
+        if self._in_content:
+            self._content_depth += 1
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "h1":
+            self._capture_title = False
+        if tag == "a":
+            self._capture_source = False
+        if self._in_content:
+            self._content_depth -= 1
+            if self._content_depth <= 0:
+                self._in_content = False
+
+    def handle_data(self, data: str) -> None:
+        text = " ".join(data.split())
+        if not text:
+            return
+        if self._capture_title:
+            self.title_parts.append(text)
+        if self._capture_source:
+            self.source_parts.append(text)
+        if self._in_content:
+            self.content_parts.append(text)
+
+    @property
+    def title(self) -> str:
+        return " ".join(self.title_parts).strip() or self.meta_title
+
+    @property
+    def source_name(self) -> str:
+        return " ".join(self.source_parts).strip()
+
+    @property
+    def content_text(self) -> str:
+        return " ".join(self.content_parts).strip()
+
+
 def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> ArticleAnalyzeResponse:
     article_url = payload.article_url.strip()
     if not is_valid_wechat_article_url(article_url):
@@ -316,6 +379,132 @@ def pick_metadata(payload: dict, *keys: str) -> str:
     return ""
 
 
+def fetch_article_directly_from_wechat(article_url: str) -> StandardArticle:
+    request = urllib.request.Request(
+        article_url,
+        headers={
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        },
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=18) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        raise RuntimeError(f"直接访问微信文章失败：{exc}") from exc
+
+    parser = WechatArticleHTMLParser()
+    parser.feed(raw)
+    title = parser.title or "公众号文章链接分析"
+    source_name = parser.source_name or "公众号链接分析"
+    content_text = parser.content_text
+    if len(content_text) < 80:
+        raise RuntimeError("微信页面未返回可解析正文，可能需要登录态或受访问限制。")
+    return StandardArticle(
+        source_name=source_name,
+        title=title,
+        article_url=article_url,
+        content_text=content_text,
+        content_html="",
+        crawl_source="article_url_analysis",
+        raw_payload={"adapter": "direct_wechat_html", "html_length": len(raw)},
+    )
+
+
+def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> ArticleAnalyzeResponse:
+    article_url = payload.article_url.strip()
+    if not is_valid_wechat_article_url(article_url):
+        raise ValueError("请输入有效的微信公众号文章链接。")
+
+    existing = session.scalar(select(Article).where(Article.article_url == article_url))
+    before_resource_ids = {resource.id for resource in session.scalars(select(Resource)).all()}
+    before_notification_count = session.scalar(select(func.count(Notification.id))) or 0
+
+    fallback_message = ""
+    try:
+        article = fetch_article_from_exporter(article_url, payload.exporter_base_url)
+    except RuntimeError as exc:
+        fallback_message = str(exc)
+        try:
+            article = fetch_article_directly_from_wechat(article_url)
+        except RuntimeError as direct_exc:
+            article = StandardArticle(
+                source_name="待识别公众号",
+                title="公众号文章链接待补全文",
+                article_url=article_url,
+                content_text="",
+                content_html="",
+                crawl_source="article_url_analysis",
+                raw_payload={
+                    "adapter": "wechat_article_url_fallback",
+                    "exporter_error": fallback_message,
+                    "direct_error": str(direct_exc),
+                },
+            )
+        else:
+            article.raw_payload = {
+                **article.raw_payload,
+                "exporter_error": fallback_message,
+                "fallback": "direct_wechat_html",
+            }
+        session.add(
+            TaskLog(
+                id=new_id("task"),
+                task_type="article_url_analysis",
+                status="partial_success" if article.content_text else "failed",
+                summary="exporter 不可用，已尝试直接解析微信页面。" if article.content_text else f"文章链接分析失败：{fallback_message}",
+                payload={"article_url": article_url, "base_url": payload.exporter_base_url},
+            )
+        )
+        session.flush()
+
+    result = ingest_standard_articles(
+        session,
+        [article],
+        "article_url_analysis",
+        {"article_url": article_url, "base_url": payload.exporter_base_url},
+    )
+
+    source = ensure_source(session, article)
+    activate_source_tracking(source, "article_url_analysis")
+    create_source_subscription(session, source)
+
+    stored = session.scalar(select(Article).where(Article.article_url == article_url))
+    if stored:
+        stored.source_id = source.id
+    session.commit()
+
+    touched_resources = resources_for_article(session, stored.id if stored else None)
+    after_notification_count = session.scalar(select(func.count(Notification.id))) or 0
+    created = sum(1 for resource in touched_resources if resource.id not in before_resource_ids)
+    updated = max(len(touched_resources) - created, 0)
+    status = stored.extraction_status if stored else ("skipped" if existing else "failed")
+    content_status = stored.content_status if stored else detect_content_status(article)
+    message = result.results[0].message if result.results else "文章分析完成。"
+    if status == "no_resource":
+        message = "文章已获取正文，但未发现明确可追踪资源。"
+    if not article.content_text:
+        message = "已保存文章链接，但云端未能获取正文。请在本地启动 wechat-article-exporter 后重试，或稍后重新分析。"
+    elif fallback_message:
+        message = f"{message} 这次使用微信页面直抓备用路径完成。"
+
+    return ArticleAnalyzeResponse(
+        article_id=stored.id if stored else None,
+        source_id=source.id,
+        source_name=source.name,
+        article_title=stored.title if stored else article.title,
+        article_url=article_url,
+        content_status=content_status,
+        extraction_status=status,
+        tracking_status=source.tracking_status,
+        created_resources=created,
+        updated_resources=updated,
+        notifications_created=max(after_notification_count - before_notification_count, 0),
+        resources=[resource_to_analyzed_item(resource, stored.id if stored else None) for resource in touched_resources],
+        message=f"{message} 已自动追踪公众号：{source.name}。",
+    )
+
+
 def fetch_missing_fulltext_with_exporter(
     session: Session,
     base_url: str = "http://127.0.0.1:4100",
@@ -406,14 +595,14 @@ def fetch_text_from_exporter(article_url: str, base_url: str = "http://127.0.0.1
     endpoint = f"{base_url.rstrip('/')}/api/public/v1/download?url={quote(article_url, safe='')}&format=text"
     request = urllib.request.Request(endpoint, headers={"Accept": "text/plain"})
     last_error: Exception | None = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
-            with urllib.request.urlopen(request, timeout=45) as response:
+            with urllib.request.urlopen(request, timeout=12) as response:
                 raw = response.read().decode("utf-8", errors="ignore")
             break
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             last_error = exc
-            if attempt < 2:
+            if attempt < 1:
                 time.sleep(2 * (attempt + 1))
                 continue
             raise RuntimeError(exporter_error_message(last_error, base_url)) from last_error

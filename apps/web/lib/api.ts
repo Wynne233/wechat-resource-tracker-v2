@@ -206,7 +206,9 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`Request failed: ${path}`);
+    const data = await response.json().catch(() => ({}));
+    const detail = typeof data.detail === "string" ? data.detail : typeof data.message === "string" ? data.message : "";
+    throw new Error(detail || `请求失败：${path}`);
   }
   return response.json() as Promise<T>;
 }
