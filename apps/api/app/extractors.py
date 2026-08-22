@@ -389,8 +389,11 @@ def _valid_resource_name(name: str, article: StandardArticle | None = None, evid
         return False
     if article and clean in article.title and any(word in article.title for word in TITLE_NOISE) and len(clean) > 18:
         return False
-    if evidence and any(word in evidence for word in ["\u5173\u6ce8", "\u516c\u4f17\u53f7", "\u804a\u5929\u6846", "\u53d1\u9001\u6570\u5b57"]):
-        return False
+    if evidence and clean in evidence:
+        index = evidence.find(clean)
+        nearby = evidence[max(0, index - 80) : index + len(clean) + 80]
+        if "\u516c\u4f17\u53f7" in nearby and any(word in nearby for word in ["\u5173\u6ce8", "\u804a\u5929\u6846", "\u53d1\u9001\u6570\u5b57"]):
+            return False
     if evidence and clean not in evidence and not any(alias in evidence for alias in clean.split()):
         return False
     return True
