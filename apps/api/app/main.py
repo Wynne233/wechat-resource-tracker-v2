@@ -106,6 +106,13 @@ def seed_demo_data_if_empty() -> None:
         import_history_json(session, payload)
 
 
+def reset_demo_data() -> None:
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    ensure_runtime_schema()
+    seed_demo_data_if_empty()
+
+
 app = FastAPI(title="公众号资源发现与追踪助手 V2 API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
@@ -276,6 +283,14 @@ def admin_wewe_rss_sync(payload: WeweRssSyncRequest, session: Session = Depends(
 @app.get("/admin/tasks", response_model=list[TaskLogRead])
 def admin_tasks(session: Session = Depends(get_session)) -> list[TaskLogRead]:
     return list_task_logs(session)
+
+
+@app.post("/admin/demo/reset")
+def admin_demo_reset(confirm: str = Query(default="")) -> dict[str, str]:
+    if confirm != "reset-demo-data":
+        raise HTTPException(status_code=400, detail="需要确认参数 confirm=reset-demo-data")
+    reset_demo_data()
+    return {"status": "ok", "message": "演示数据已重置"}
 
 
 @app.post("/admin/resources/{resource_id}/review", response_model=ManualReviewResponse)
