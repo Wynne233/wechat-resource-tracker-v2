@@ -1,0 +1,74 @@
+name: wechat-resource-tracker
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      RESOURCE_TRACKER_DB_FILE: /workspace/data/resource_tracker_v2.db
+      WECHAT_EXPORTER_BASE_URL: http://exporter:3000
+      WEWE_RSS_BASE_URL: http://wewe-rss:4000
+      WEWE_RSS_FEED_URL: http://wewe-rss:4000/feeds/all.json
+    volumes:
+      - api-data:/workspace/data
+    depends_on:
+      - exporter
+      - wewe-rss
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+      args:
+        INTERNAL_API_BASE_URL: http://api:8000
+    restart: unless-stopped
+    environment:
+      INTERNAL_API_BASE_URL: http://api:8000
+    depends_on:
+      - api
+
+  exporter:
+    image: ghcr.io/wechat-article/wechat-article-exporter:latest
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      NITRO_KV_DRIVER: fs
+      NITRO_KV_BASE: .data/kv
+
+  wewe-rss:
+    image: docker.io/cooderl/wewe-rss-sqlite:v2.6.1
+    restart: unless-stopped
+    environment:
+      DATABASE_TYPE: sqlite
+      AUTH_CODE: ${WEWE_RSS_AUTH_CODE:?Set WEWE_RSS_AUTH_CODE in .env}
+      SERVER_ORIGIN_URL: http://${PUBLIC_HOST:?Set PUBLIC_HOST in .env}:4000
+      FEED_MODE: fulltext
+      ENABLE_CLEAN_HTML: "true"
+      UPDATE_DELAY_TIME: 60s
+      CRON_EXPRESSION: "0 18 * * 6"
+    volumes:
+      - wewe-rss-data:/app/data
+    ports:
+      - "4000:4000"
+
+  gateway:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+
+volumes:
+  api-data:
+  wewe-rss-data:
+  caddy-data:
+  caddy-config:

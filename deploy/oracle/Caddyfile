@@ -1,0 +1,6 @@
+# Works with a public IP immediately. When a domain is available, replace
+# :80 with the domain name and Caddy will issue and renew HTTPS certificates.
+:80 {
+  encode zstd gzip
+  reverse_proxy web:3000
+}
