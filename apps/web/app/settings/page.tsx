@@ -8,18 +8,17 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <section className="section-header">
+      <section className="admin-hero">
         <div>
-          <span className="badge">通知设置</span>
-          <h1 className="section-title">站内默认开启，飞书可选</h1>
-          <p className="section-subtitle">P0 只做飞书 Webhook，不做飞书 OAuth，不读取用户飞书账号。</p>
+          <h1>通知设置</h1>
+          <p>站内通知默认生成；飞书 Webhook 用于把资源命中、状态变化和风险提示推送到外部协作空间。</p>
         </div>
       </section>
-      <section className="section grid two">
-        <div className="card">
+      <section className="admin-grid section">
+        <div className="ops-panel">
           <h2>站内通知</h2>
-          <p className="muted">所有命中订阅的事件默认生成站内通知，包括主题新增资源、资源疑似失效、资源疑似更新等。</p>
-          <span className="status available">已开启</span>
+          <p className="muted">订阅命中的资源会先写入站内通知。暂停追踪的来源不会产生来源维度提醒。</p>
+          <span className="status available">已启用</span>
         </div>
         <FeishuForm initial={setting} />
       </section>

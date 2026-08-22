@@ -22,6 +22,19 @@ export type SearchResponse = {
   message: string;
 };
 
+export type AdminResourceListResponse = {
+  total: number;
+  items: SearchResource[];
+};
+
+export type ResourceBulkActionResponse = {
+  requested_count: number;
+  updated_count: number;
+  deleted_count: number;
+  skipped_count: number;
+  message: string;
+};
+
 export type ResourceDetail = {
   id: string;
   canonical_name: string;
@@ -243,8 +256,35 @@ export function getAdminOverview() {
   return fetchJson<AdminOverview>("/admin/overview");
 }
 
-export function getAdminResources() {
-  return fetchJson<SearchResource[]>("/admin/resources");
+export function getAdminResources(params?: { q?: string; status?: string; risk?: string; page?: number; pageSize?: number }) {
+  const searchParams = new URLSearchParams();
+  if (params?.q) searchParams.set("q", params.q);
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.risk) searchParams.set("risk", params.risk);
+  if (params?.page) searchParams.set("page", String(params.page));
+  if (params?.pageSize) searchParams.set("page_size", String(params.pageSize));
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return fetchJson<AdminResourceListResponse>(`/admin/resources${suffix}`);
+}
+
+export function deleteAdminResource(resourceId: string) {
+  return fetchJson<ResourceBulkActionResponse>(`/admin/resources/${resourceId}`, {
+    method: "DELETE",
+  });
+}
+
+export function bulkDeleteAdminResources(resourceIds: string[]) {
+  return fetchJson<ResourceBulkActionResponse>("/admin/resources/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ resource_ids: resourceIds }),
+  });
+}
+
+export function bulkUpdateAdminResources(payload: { resource_ids: string[]; current_status?: string; risk_level?: string; note?: string }) {
+  return fetchJson<ResourceBulkActionResponse>("/admin/resources/bulk-update", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getIntegrations() {

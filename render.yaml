@@ -10,6 +10,8 @@ services:
         value: "false"
       - key: PYTHON_VERSION
         value: "3.12"
+      - key: RESOURCE_TRACKER_RESET_CORRUPT_DEMO_DATA
+        value: "true"
   - type: web
     name: wechat-resource-tracker-web
     env: node

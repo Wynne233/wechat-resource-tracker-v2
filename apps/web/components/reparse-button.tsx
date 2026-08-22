@@ -24,12 +24,9 @@ export function ReparseButton() {
   }
 
   return (
-    <div className="card">
-      <div className="card-heading">
-        <h2>资源解析修复</h2>
-        <span className="badge">MVP hybrid</span>
-      </div>
-      <p className="muted">按新版“候选召回 + 结构化识别 + 能力标签”重新解析已有文章，用于修复旧数据中的泛词资源和漏识别。</p>
+    <div className="analysis-result">
+      <h2>资源解析修复</h2>
+      <p className="muted">按当前抽取规则重新解析已有文章，用于修复旧数据中的泛词资源和漏识别。</p>
       <button className="button warn" disabled={isPending} onClick={submit} type="button">
         {isPending ? "重新解析中..." : "重新解析全部文章"}
       </button>

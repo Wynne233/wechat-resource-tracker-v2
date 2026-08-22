@@ -16,6 +16,7 @@ export function SourceForm() {
       trust_level: String(formData.get("trust_level") ?? "pending"),
       notes: String(formData.get("notes") ?? ""),
     };
+
     startTransition(async () => {
       setMessage("");
       try {
@@ -24,9 +25,7 @@ export function SourceForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        if (!response.ok) {
-          throw new Error("保存来源失败");
-        }
+        if (!response.ok) throw new Error("保存来源失败");
         setMessage("已保存来源，刷新后可见。");
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "保存来源失败");
@@ -35,10 +34,10 @@ export function SourceForm() {
   }
 
   return (
-    <form action={submit} className="card form">
-      <div className="card-heading">
-        <h2>新增公众号来源</h2>
-        <span className="badge">P0</span>
+    <form action={submit} className="ops-panel form">
+      <div className="panel-heading">
+        <h2>新增来源</h2>
+        <span className="badge">公众号</span>
       </div>
       <input className="input" name="name" placeholder="公众号名称" required />
       <input className="input" name="source_identifier" placeholder="公众号标识，可选" />
@@ -63,4 +62,3 @@ export function SourceForm() {
     </form>
   );
 }
-

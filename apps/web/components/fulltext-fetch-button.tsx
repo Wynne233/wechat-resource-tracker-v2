@@ -16,7 +16,7 @@ export function FulltextFetchButton() {
       try {
         const result = await fetchArticleFulltext(30);
         setMessage(
-          `已尝试补抓 ${result.requested_count} 篇，成功 ${result.imported_count} 篇，失败 ${result.skipped_count} 篇，生成/更新 ${result.resource_count} 个资源。`,
+          `已尝试补抓 ${result.requested_count} 篇，成功 ${result.imported_count} 篇，跳过 ${result.skipped_count} 篇，生成/更新 ${result.resource_count} 个资源。`,
         );
         router.refresh();
       } catch (error) {
@@ -26,16 +26,11 @@ export function FulltextFetchButton() {
   }
 
   return (
-    <div className="card">
-      <div className="card-heading">
-        <h2>全文补抓</h2>
-        <span className="badge">wechat-article-exporter</span>
-      </div>
-      <p className="muted">
-        对只有标题的文章，按文章链接调用 exporter 后端下载接口补抓正文；成功后自动进入 DeepSeek 结构化资源解析。
-      </p>
+    <div className="analysis-result">
+      <h2>全文补抓</h2>
+      <p className="muted">对缺少正文的文章调用 exporter 下载正文，成功后重新进入资源解析。</p>
       <button className="button" disabled={isPending} onClick={submit} type="button">
-        {isPending ? "补抓并解析中..." : "补抓缺失全文并解析"}
+        {isPending ? "补抓并解析中..." : "补抓缺失全文"}
       </button>
       {message ? <p className="muted">{message}</p> : null}
     </div>

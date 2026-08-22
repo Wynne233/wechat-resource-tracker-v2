@@ -85,6 +85,26 @@ class SearchResource(BaseModel):
     match_reason: str = ""
 
 
+class AdminResourceListResponse(BaseModel):
+    total: int
+    items: list[SearchResource]
+
+
+class ResourceBulkUpdateRequest(BaseModel):
+    resource_ids: list[str]
+    current_status: str | None = None
+    risk_level: str | None = None
+    note: str = ""
+
+
+class ResourceBulkActionResponse(BaseModel):
+    requested_count: int
+    updated_count: int = 0
+    deleted_count: int = 0
+    skipped_count: int = 0
+    message: str
+
+
 class SearchResponse(BaseModel):
     query: str
     total: int

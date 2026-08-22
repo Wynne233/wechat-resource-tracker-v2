@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -9,40 +10,44 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from .db import ROOT, create_session, engine, ensure_runtime_schema, get_session
-from .models import Article, Base
+from .models import Article, Base, Resource
 from .repository import (
     admin_overview,
     analyze_article_url,
     apply_manual_review,
+    bulk_update_resources,
     check_source_now,
     create_source,
     create_subscription,
+    delete_resource,
+    delete_resources,
     fetch_missing_fulltext_with_exporter,
     get_feishu_setting,
     get_resource_detail,
-    import_supplement,
     import_history_json,
+    import_supplement,
     import_wechat_exporter,
-    list_integrations,
     list_admin_resources,
+    list_integrations,
     list_notifications,
     list_sources,
     list_subscriptions,
     list_task_logs,
     recalculate_score_by_id,
+    reparse_all_articles,
     save_wewe_rss_config,
     search_resources,
-    reparse_all_articles,
     sync_wewe_rss,
     test_feishu_setting,
     update_source_tracking,
     upsert_feishu_setting,
 )
 from .schemas import (
+    AdapterImportRequest,
     AdminOverview,
+    AdminResourceListResponse,
     ArticleAnalyzeRequest,
     ArticleAnalyzeResponse,
-    AdapterImportRequest,
     FeishuSettingCreate,
     FeishuSettingRead,
     HistoryImportRequest,
@@ -51,10 +56,11 @@ from .schemas import (
     ManualReviewRequest,
     ManualReviewResponse,
     NotificationRead,
+    ResourceBulkActionResponse,
+    ResourceBulkUpdateRequest,
     ResourceDetail,
     ScoreBreakdown,
     SearchResponse,
-    SearchResource,
     SourceCheckResponse,
     SourceCreate,
     SourceRead,
@@ -72,8 +78,21 @@ from .schemas import (
 async def lifespan(_: FastAPI):
     Base.metadata.create_all(bind=engine)
     ensure_runtime_schema()
+    reset_corrupt_demo_data_if_requested()
     seed_demo_data_if_empty()
     yield
+
+
+def reset_corrupt_demo_data_if_requested() -> None:
+    if os.getenv("RESOURCE_TRACKER_RESET_CORRUPT_DEMO_DATA", "").lower() not in {"1", "true", "yes"}:
+        return
+    with create_session() as session:
+        names = [name or "" for (name,) in session.query(Resource.canonical_name).limit(50).all()]
+        if names and not any("�" in name or "锟" in name for name in names):
+            return
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    ensure_runtime_schema()
 
 
 def seed_demo_data_if_empty() -> None:
@@ -164,9 +183,31 @@ def admin_sources(session: Session = Depends(get_session)) -> list[SourceRead]:
     return list_sources(session)
 
 
-@app.get("/admin/resources", response_model=list[SearchResource])
-def admin_resources(session: Session = Depends(get_session)) -> list[SearchResource]:
-    return list_admin_resources(session)
+@app.get("/admin/resources", response_model=AdminResourceListResponse)
+def admin_resources(
+    q: str = Query(default=""),
+    status: str = Query(default=""),
+    risk: str = Query(default=""),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    session: Session = Depends(get_session),
+) -> AdminResourceListResponse:
+    return list_admin_resources(session, q=q, status=status, risk=risk, page=page, page_size=page_size)
+
+
+@app.delete("/admin/resources/{resource_id}", response_model=ResourceBulkActionResponse)
+def admin_resource_delete(resource_id: str, session: Session = Depends(get_session)) -> ResourceBulkActionResponse:
+    return delete_resource(session, resource_id)
+
+
+@app.post("/admin/resources/bulk-delete", response_model=ResourceBulkActionResponse)
+def admin_resources_bulk_delete(payload: ResourceBulkUpdateRequest, session: Session = Depends(get_session)) -> ResourceBulkActionResponse:
+    return delete_resources(session, payload.resource_ids)
+
+
+@app.post("/admin/resources/bulk-update", response_model=ResourceBulkActionResponse)
+def admin_resources_bulk_update(payload: ResourceBulkUpdateRequest, session: Session = Depends(get_session)) -> ResourceBulkActionResponse:
+    return bulk_update_resources(session, payload)
 
 
 @app.post("/admin/sources", response_model=SourceRead, status_code=201)

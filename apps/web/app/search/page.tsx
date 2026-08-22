@@ -11,24 +11,23 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
 
   return (
     <>
-      <section className="section-header">
+      <section className="admin-hero">
         <div>
-          <span className="badge">搜索结果</span>
-          <h1 className="section-title">{q || "未输入关键词"}</h1>
-          <p className="section-subtitle">{result.message}</p>
+          <h1>{q || "搜索资源"}</h1>
+          <p>{result.message}</p>
         </div>
         {q ? <SubscribeButton displayName={`${q} 主题`} targetType="topic" targetValue={q} /> : null}
       </section>
 
       {result.items.length === 0 ? (
-        <section className="card">
-          <h2>当前资源库暂无相关资源</h2>
-          <p className="muted">这不是系统无法工作，而是冷启动数据还没有覆盖这个主题。你可以先订阅关键词，后续导入或同步到相关资源时会进入站内通知。</p>
+        <section className="ops-panel section">
+          <h2>资源库暂无相关结果</h2>
+          <p className="muted">这通常意味着演示数据未覆盖该主题，或相关文章尚未导入。你可以订阅关键词，后续命中时会生成通知。</p>
         </section>
       ) : (
         <section className="section list">
           {result.items.map((item) => (
-            <article className="card resource-card" key={item.id}>
+            <article className="ops-panel resource-card" key={item.id}>
               <div className="row">
                 <div>
                   <Link href={`/resources/${item.id}`}>
@@ -43,14 +42,14 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
               </div>
               <div className="meta">
                 <span className={`status ${item.current_status}`}>{item.current_status}</span>
-                <span>{item.source_count} 个公众号来源</span>
+                <span>{item.source_count} 个来源</span>
                 <span>{item.mention_count} 条证据</span>
                 <span>风险：{item.risk_level}</span>
               </div>
               {item.capability_tags.length ? (
-                <div className="meta">
+                <div className="tag-row">
                   {item.capability_tags.slice(0, 6).map((tag) => (
-                    <span className="badge" key={tag}>{tag}</span>
+                    <span className="tag" key={tag}>{tag}</span>
                   ))}
                 </div>
               ) : null}

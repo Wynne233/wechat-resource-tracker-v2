@@ -35,6 +35,7 @@ from .models import (
 )
 from .schemas import (
     AdminOverview,
+    AdminResourceListResponse,
     AnalyzedResource,
     AdapterImportRequest,
     ArticleAnalyzeRequest,
@@ -48,6 +49,8 @@ from .schemas import (
     ManualReviewResponse,
     NotificationRead,
     ResourceDetail,
+    ResourceBulkActionResponse,
+    ResourceBulkUpdateRequest,
     ScoreBreakdown,
     SearchResource,
     SearchResponse,
@@ -71,6 +74,17 @@ from .utils import canonical_key, mask_webhook, new_id, now, trust_weight
 
 SOURCE_CHECK_COOLDOWN = timedelta(minutes=30)
 SOURCE_CHECK_INTERVAL = timedelta(days=7)
+
+
+def _unique(values: list[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = value.strip()
+        if key and key not in seen:
+            seen.add(key)
+            result.append(key)
+    return result
 
 
 def ensure_source(session: Session, payload: SourceCreate | StandardArticle) -> SourceAccount:
@@ -1087,9 +1101,102 @@ def _semantic_query_match(query: str, searchable_text: str) -> tuple[int, str]:
     return 0, ""
 
 
-def list_admin_resources(session: Session) -> list[SearchResource]:
-    resources = session.scalars(select(Resource).order_by(Resource.latest_score.desc(), Resource.updated_at.desc())).all()
-    return [resource_to_search_item(resource) for resource in resources]
+def list_admin_resources(
+    session: Session,
+    q: str = "",
+    status: str = "",
+    risk: str = "",
+    page: int = 1,
+    page_size: int = 50,
+) -> AdminResourceListResponse:
+    query = select(Resource)
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.where(
+            or_(
+                Resource.canonical_name.like(pattern),
+                Resource.summary.like(pattern),
+                Resource.resource_type.like(pattern),
+            )
+        )
+    if status:
+        query = query.where(Resource.current_status == status)
+    if risk:
+        query = query.where(Resource.risk_level == risk)
+    total = session.scalar(select(func.count()).select_from(query.subquery())) or 0
+    offset = max(page - 1, 0) * page_size
+    resources = session.scalars(
+        query.order_by(Resource.latest_score.desc(), Resource.updated_at.desc()).offset(offset).limit(page_size)
+    ).all()
+    return AdminResourceListResponse(total=total, items=[resource_to_search_item(resource) for resource in resources])
+
+
+def delete_resource(session: Session, resource_id: str) -> ResourceBulkActionResponse:
+    return delete_resources(session, [resource_id])
+
+
+def delete_resources(session: Session, resource_ids: list[str]) -> ResourceBulkActionResponse:
+    unique_ids = _unique([resource_id.strip() for resource_id in resource_ids if resource_id.strip()])
+    deleted = 0
+    for resource_id in unique_ids:
+        resource = session.get(Resource, resource_id)
+        if resource is None:
+            continue
+        _delete_resource_graph(session, resource)
+        deleted += 1
+    session.commit()
+    return ResourceBulkActionResponse(
+        requested_count=len(unique_ids),
+        deleted_count=deleted,
+        skipped_count=max(len(unique_ids) - deleted, 0),
+        message=f"已删除 {deleted} 个资源。",
+    )
+
+
+def bulk_update_resources(session: Session, payload: ResourceBulkUpdateRequest) -> ResourceBulkActionResponse:
+    unique_ids = _unique([resource_id.strip() for resource_id in payload.resource_ids if resource_id.strip()])
+    updated = 0
+    for resource_id in unique_ids:
+        resource = session.get(Resource, resource_id)
+        if resource is None:
+            continue
+        before = {
+            "current_status": resource.current_status,
+            "risk_level": resource.risk_level,
+        }
+        if payload.current_status:
+            resource.current_status = payload.current_status
+        if payload.risk_level:
+            resource.risk_level = payload.risk_level
+        session.add(
+            ManualReview(
+                id=new_id("rev"),
+                target_type="resource",
+                target_id=resource.id,
+                action_type="bulk_update",
+                before_value=before,
+                after_value={"current_status": resource.current_status, "risk_level": resource.risk_level},
+                note=payload.note,
+            )
+        )
+        recalculate_resource_score(session, resource)
+        updated += 1
+    session.commit()
+    return ResourceBulkActionResponse(
+        requested_count=len(unique_ids),
+        updated_count=updated,
+        skipped_count=max(len(unique_ids) - updated, 0),
+        message=f"已更新 {updated} 个资源。",
+    )
+
+
+def _delete_resource_graph(session: Session, resource: Resource) -> None:
+    session.execute(delete(ResourceMention).where(ResourceMention.resource_id == resource.id))
+    session.execute(delete(ResourceScore).where(ResourceScore.resource_id == resource.id))
+    session.execute(delete(StatusCheck).where(StatusCheck.resource_id == resource.id))
+    session.execute(delete(Notification).where(Notification.resource_id == resource.id))
+    session.execute(delete(ManualReview).where(ManualReview.target_type == "resource", ManualReview.target_id == resource.id))
+    session.delete(resource)
 
 
 def resource_to_search_item(resource: Resource, match_reason: str = "") -> SearchResource:
@@ -1343,6 +1450,124 @@ def feishu_setting_to_schema(setting: NotificationSetting) -> FeishuSettingRead:
         last_test_result=setting.last_test_result,
         last_tested_at=setting.last_tested_at,
     )
+
+
+def is_valid_feishu_webhook(url: str) -> bool:
+    clean = (url or "").strip()
+    return clean.startswith("https://") and "/bot/v2/hook/" in clean and ("feishu" in clean or "larksuite" in clean)
+
+
+def send_feishu_message(webhook_url: str, title: str, body: str) -> tuple[bool, str]:
+    payload = {
+        "msg_type": "interactive",
+        "card": {
+            "header": {"title": {"tag": "plain_text", "content": title}},
+            "elements": [{"tag": "div", "text": {"tag": "lark_md", "content": body}}],
+        },
+    }
+    request = urllib.request.Request(
+        webhook_url,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=12) as response:
+            raw = response.read().decode("utf-8", errors="replace")
+            if 200 <= response.status < 300:
+                return True, f"飞书消息已发送：HTTP {response.status}"
+            return False, f"飞书发送失败：HTTP {response.status} {raw[:180]}"
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        return False, f"飞书发送失败：{exc}"
+
+
+def send_feishu_notification_if_configured(session: Session, title: str, body: str) -> None:
+    setting = get_or_create_setting(session)
+    if not is_valid_feishu_webhook(setting.feishu_webhook):
+        return
+    ok, message = send_feishu_message(setting.feishu_webhook, title=title, body=body)
+    setting.feishu_status = "configured" if ok else "send_failed"
+    setting.last_test_result = message
+    setting.last_tested_at = now()
+
+
+def upsert_feishu_setting(session: Session, webhook_url: str) -> FeishuSettingRead:
+    setting = get_or_create_setting(session)
+    if not is_valid_feishu_webhook(webhook_url):
+        setting.feishu_status = "invalid"
+        setting.last_test_result = "请输入有效的飞书或 Lark 自定义机器人 Webhook。"
+        session.commit()
+        return feishu_setting_to_schema(setting)
+    setting.feishu_webhook = webhook_url.strip()
+    setting.feishu_status = "configured"
+    setting.last_test_result = "已保存，尚未发送测试消息。"
+    session.commit()
+    return feishu_setting_to_schema(setting)
+
+
+def test_feishu_setting(session: Session, webhook_url: str | None = None) -> FeishuSettingRead:
+    setting = get_or_create_setting(session)
+    url = (webhook_url or setting.feishu_webhook or "").strip()
+    if not is_valid_feishu_webhook(url):
+        setting.feishu_status = "test_failed"
+        setting.last_test_result = "请输入有效的飞书或 Lark 自定义机器人 Webhook。"
+    else:
+        setting.feishu_webhook = url
+        ok, message = send_feishu_message(
+            url,
+            title="公众号资源发现与追踪助手测试通知",
+            body="这是一条真实飞书 Webhook 测试消息。收到后说明通知链路已打通。",
+        )
+        setting.feishu_status = "configured" if ok else "test_failed"
+        setting.last_test_result = message
+    setting.last_tested_at = now()
+    session.commit()
+    return feishu_setting_to_schema(setting)
+
+
+def create_subscription_notifications(session: Session, resource: Resource) -> int:
+    subscriptions = session.scalars(select(Subscription).where(Subscription.status == "active")).all()
+    created = 0
+    for sub in subscriptions:
+        matched = False
+        if sub.target_type == "resource" and sub.target_value == resource.id:
+            matched = True
+        if sub.target_type == "source" and any(mention.article.source_id == sub.target_value for mention in resource.mentions):
+            matched = True
+        if sub.target_type == "topic" and (
+            sub.target_value.lower() in resource.canonical_name.lower()
+            or sub.target_value.lower() in resource.summary.lower()
+            or sub.target_value.lower() == resource.resource_type.lower()
+            or any(sub.target_value.lower() in tag.lower() or tag.lower() in sub.target_value.lower() for tag in resource.capability_tags or [])
+        ):
+            matched = True
+        if not matched:
+            continue
+        title = f"{sub.display_name} 有新资源：{resource.canonical_name}"
+        body = f"{resource.canonical_name} 当前评分 {resource.latest_score:.1f}/{resource.latest_grade}，状态 {resource.current_status}。"
+        existing = session.scalar(
+            select(Notification).where(
+                Notification.subscription_id == sub.id,
+                Notification.resource_id == resource.id,
+                Notification.event_type == "resource_matched",
+                Notification.title == title,
+            )
+        )
+        if existing:
+            continue
+        session.add(
+            Notification(
+                id=new_id("noti"),
+                subscription_id=sub.id,
+                event_type="resource_matched",
+                title=title,
+                body=body,
+                resource_id=resource.id,
+            )
+        )
+        send_feishu_notification_if_configured(session, title, body)
+        created += 1
+    return created
 
 
 def apply_manual_review(session: Session, resource_id: str, payload: ManualReviewRequest) -> ManualReviewResponse:

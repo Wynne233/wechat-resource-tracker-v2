@@ -9,21 +9,20 @@ export default async function SubscriptionsPage() {
 
   return (
     <>
-      <section className="section-header">
+      <section className="admin-hero">
         <div>
-          <span className="badge">订阅中心</span>
-          <h1 className="section-title">主题、资源和通知</h1>
-          <p className="section-subtitle">订阅命中后先进入站内通知；外部飞书推送由通知设置决定。</p>
+          <h1>订阅与通知</h1>
+          <p>订阅主题、资源或来源后，命中的资源变化会先进入站内通知，再按设置推送到飞书。</p>
         </div>
       </section>
 
-      <section className="section grid two">
-        <div className="card">
+      <section className="admin-grid section">
+        <div className="ops-panel">
           <h2>我的订阅</h2>
           <div className="list">
             {subscriptions.length === 0 ? <p className="muted">暂无订阅。可以在搜索结果或资源详情页订阅。</p> : null}
             {subscriptions.map((item) => (
-              <div className="card" key={item.id}>
+              <div className="analysis-result" key={item.id}>
                 <div className="row">
                   <strong>{item.display_name}</strong>
                   <span className="badge">{item.target_type}</span>
@@ -34,12 +33,12 @@ export default async function SubscriptionsPage() {
           </div>
         </div>
 
-        <div className="card">
+        <div className="ops-panel">
           <h2>站内通知</h2>
           <div className="list">
             {notifications.length === 0 ? <p className="muted">暂无通知。导入命中订阅的资源后会生成记录。</p> : null}
             {notifications.map((item) => (
-              <div className="card" key={item.id}>
+              <div className="analysis-result" key={item.id}>
                 <div className="row">
                   <strong>{item.title}</strong>
                   <span className="badge">{item.status}</span>

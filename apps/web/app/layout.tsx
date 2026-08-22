@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "公众号资源发现与追踪助手",
-  description: "搜索、评分、追溯和订阅微信公众号资源。",
+  description: "搜索、评分、追溯和管理公众号文章中出现的资源。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -15,7 +15,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main className="shell">
           <nav className="nav">
             <Link className="brand" href="/">
-              资源发现 V2
+              资源情报库
             </Link>
             <Link href="/">搜索</Link>
             <Link href="/subscriptions">订阅中心</Link>
@@ -28,4 +28,3 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     </html>
   );
 }
-

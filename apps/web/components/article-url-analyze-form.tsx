@@ -23,23 +23,20 @@ export function ArticleUrlAnalyzeForm({ compact = false }: { compact?: boolean }
         setMessage(data.message);
         router.refresh();
       } catch (error) {
-        setMessage(error instanceof Error ? error.message : "文章分析失败");
+        setMessage(error instanceof Error ? error.message : "文章分析失败，请检查链接或全文获取服务。");
       }
     });
   }
 
   return (
-    <div className={compact ? "card form" : "article-analyzer card form"}>
-      <div className="card-heading">
+    <div className={compact ? "analysis-panel form" : "article-analyzer form"}>
+      <div className="panel-heading">
         <div>
-          <span className="badge">1.0.2</span>
           <h2>分析公众号文章链接</h2>
+          <p>粘贴单篇公众号文章，系统会抓取正文、识别资源、入库并追踪来源。</p>
         </div>
         <span className="status configured">自动追踪</span>
       </div>
-      <p className="muted">
-        粘贴一篇微信公众号文章链接，系统会自动获取全文、解析资源并追踪该公众号。DeepSeek Key 继续由服务端环境变量管理，页面不会展示密钥。
-      </p>
       <div className="search-box wide">
         <input
           className="input"
