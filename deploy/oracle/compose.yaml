@@ -9,13 +9,14 @@ services:
     env_file: .env
     environment:
       RESOURCE_TRACKER_DB_FILE: /workspace/data/resource_tracker_v2.db
-      WECHAT_EXPORTER_BASE_URL: http://exporter:3000
+      # The upstream exporter API was retired. The API service falls back to
+      # fetching public WeChat article pages directly when this endpoint is unavailable.
+      WECHAT_EXPORTER_BASE_URL: http://127.0.0.1:9
       WEWE_RSS_BASE_URL: http://wewe-rss:4000
       WEWE_RSS_FEED_URL: http://wewe-rss:4000/feeds/all.json
     volumes:
       - api-data:/workspace/data
     depends_on:
-      - exporter
       - wewe-rss
 
   web:
@@ -29,14 +30,6 @@ services:
       INTERNAL_API_BASE_URL: http://api:8000
     depends_on:
       - api
-
-  exporter:
-    image: ghcr.io/wechat-article/wechat-article-exporter:latest
-    restart: unless-stopped
-    environment:
-      PORT: "3000"
-      NITRO_KV_DRIVER: fs
-      NITRO_KV_BASE: .data/kv
 
   wewe-rss:
     image: docker.io/cooderl/wewe-rss-sqlite:v2.6.1

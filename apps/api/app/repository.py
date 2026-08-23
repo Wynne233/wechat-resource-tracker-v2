@@ -424,6 +424,25 @@ def fetch_article_directly_from_wechat(article_url: str) -> StandardArticle:
     )
 
 
+def fetch_article_with_fallback(article_url: str, exporter_base_url: str) -> tuple[StandardArticle, str]:
+    """Use the legacy exporter when available, then fall back to public page HTML."""
+    try:
+        return fetch_article_from_exporter(article_url, exporter_base_url), ""
+    except RuntimeError as exporter_error:
+        try:
+            article = fetch_article_directly_from_wechat(article_url)
+        except RuntimeError as direct_error:
+            raise RuntimeError(
+                f"全文获取服务不可用：{exporter_error}；直接访问微信文章也失败：{direct_error}"
+            ) from direct_error
+        article.raw_payload = {
+            **article.raw_payload,
+            "exporter_error": str(exporter_error),
+            "fallback": "direct_wechat_html",
+        }
+        return article, str(exporter_error)
+
+
 def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> ArticleAnalyzeResponse:
     article_url = payload.article_url.strip()
     if not is_valid_wechat_article_url(article_url):
@@ -434,33 +453,19 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
     before_notification_count = session.scalar(select(func.count(Notification.id))) or 0
 
     exporter_base_url = configured_exporter_base_url(payload.exporter_base_url)
-    fallback_message = ""
     try:
-        article = fetch_article_from_exporter(article_url, exporter_base_url)
+        article, fallback_message = fetch_article_with_fallback(article_url, exporter_base_url)
     except RuntimeError as exc:
         fallback_message = str(exc)
-        try:
-            article = fetch_article_directly_from_wechat(article_url)
-        except RuntimeError as direct_exc:
-            article = StandardArticle(
-                source_name="待识别公众号",
-                title="公众号文章链接待补全文",
-                article_url=article_url,
-                content_text="",
-                content_html="",
-                crawl_source="article_url_analysis",
-                raw_payload={
-                    "adapter": "wechat_article_url_fallback",
-                    "exporter_error": fallback_message,
-                    "direct_error": str(direct_exc),
-                },
-            )
-        else:
-            article.raw_payload = {
-                **article.raw_payload,
-                "exporter_error": fallback_message,
-                "fallback": "direct_wechat_html",
-            }
+        article = StandardArticle(
+            source_name="待识别公众号",
+            title="公众号文章链接待补全文",
+            article_url=article_url,
+            content_text="",
+            content_html="",
+            crawl_source="article_url_analysis",
+            raw_payload={"adapter": "wechat_article_url_fallback", "error": fallback_message},
+        )
         session.add(
             TaskLog(
                 id=new_id("task"),
@@ -498,7 +503,7 @@ def analyze_article_url(session: Session, payload: ArticleAnalyzeRequest) -> Art
     if status == "no_resource":
         message = "文章已获取正文，但未发现明确可追踪资源。"
     if not article.content_text:
-        message = "已保存文章链接，但云端未能获取正文。请在本地启动 wechat-article-exporter 后重试，或稍后重新分析。"
+        message = "已保存文章链接，但云端未能获取正文。请稍后重试，或确认该文章可在浏览器中公开访问。"
     elif fallback_message:
         message = f"{message} 这次使用微信页面直抓备用路径完成。"
 
@@ -542,7 +547,7 @@ def fetch_missing_fulltext_with_exporter(
 
     for article in articles:
         try:
-            content_text = fetch_text_from_exporter(article.article_url, base_url)
+            fetched_article, fallback_message = fetch_article_with_fallback(article.article_url, base_url)
         except RuntimeError as exc:
             failed += 1
             article.extraction_message = f"全文补抓失败：{exc}"
@@ -556,7 +561,7 @@ def fetch_missing_fulltext_with_exporter(
             )
             continue
 
-        article.content_text = content_text
+        article.content_text = fetched_article.content_text
         article.content_status = detect_content_status(article_to_standard(article))
         clear_article_extraction(session, article)
         standard = article_to_standard(article)
@@ -568,7 +573,8 @@ def fetch_missing_fulltext_with_exporter(
             imported_names.append(resource.canonical_name)
         article.extraction_status = "success" if imported_names else "no_resource"
         article.extraction_version = EXTRACTION_VERSION
-        article.extraction_message = f"通过 wechat-article-exporter 补抓全文并抽取 {len(imported_names)} 个资源。"
+        fetch_method = "微信公开页面直抓" if fallback_message else "全文获取服务"
+        article.extraction_message = f"通过{fetch_method}补抓全文并抽取 {len(imported_names)} 个资源。"
         updated += 1
         results.append(
             ImportResultItem(
