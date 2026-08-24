@@ -25,23 +25,6 @@ export default function HomePage() {
             ))}
           </div>
         </div>
-        <div className="hero-board" aria-hidden="true">
-          <div className="board-row">
-            <span>资源</span>
-            <strong>Listen1</strong>
-            <em>可用 / B</em>
-          </div>
-          <div className="board-row">
-            <span>来源</span>
-            <strong>宝藏软件周刊</strong>
-            <em>2 次提及</em>
-          </div>
-          <div className="board-row warning">
-            <span>状态</span>
-            <strong>Omnivore</strong>
-            <em>疑似停止维护</em>
-          </div>
-        </div>
       </section>
 
       <section className="section">

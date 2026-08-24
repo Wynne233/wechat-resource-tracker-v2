@@ -109,6 +109,10 @@ a:focus-visible {
   box-shadow: var(--shadow);
 }
 
+.home-hero {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .admin-hero {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
