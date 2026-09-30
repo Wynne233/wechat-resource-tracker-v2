@@ -1,5 +1,5 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm run build",
+  "buildCommand": "NEXT_PUBLIC_DEMO_MODE=true npm run build",
   "outputDirectory": ".next"
 }
