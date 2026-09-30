@@ -195,8 +195,10 @@ export type SourceCheckResponse = {
 const API_BASE = typeof window === "undefined"
   ? process.env.INTERNAL_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8001"
   : "/api/backend";
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO_MODE) return getDemoResponse(path) as T;
   const response = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
     ...init,
@@ -319,3 +321,4 @@ export function getFeishuSetting() {
 }
 
 export { API_BASE };
+import { getDemoResponse } from "./demo-data";
